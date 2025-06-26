@@ -1,0 +1,1359 @@
+openapi: 3.0.3
+info:
+  title: Faxolution for Applications (Fax4A) REST API
+  version: v1
+  description: >
+    Retarus' Faxolution for Applications webservice facilitates automation of
+
+    the fax transmission process. In addition, it also allows you to monitor
+
+    the status of a sent fax and delete archived reports. The Webservice
+
+    communicates via REST 1.0 (JSON). The programming language with which the
+
+    Webservice client is implemented is not restricted by the Webservice itself.
+
+
+    Fax transmission is generally divided into the following steps:
+
+
+    * Create a fax job and send it to the webservice
+
+
+    then either
+
+
+    * Retrieve completed fax jobs
+
+      GET /{custNr}/fax/reports
+    * Retrieve the status details for the completed jobs individually or in bulk
+
+      GET /{custNr}/fax/reports/{jobId} or POST /{custNr}/fax/reports
+    * Delete the retrieved jobs individually or in bulk
+
+      DELETE /{custNr}/fax/reports/{jobId} or POST /{custNr}/fax/reports
+
+    or
+
+
+    * Receive the fax job status per HTTP push and/or email status Report
+
+
+    Fax job data will be automatically deleted after the configured retention
+    time.
+
+
+    For highest process safety standards, we operate two high availability (HA)
+    regions, where data centers are clustered. This is how the HA regions are
+    composed:
+
+
+    **Germany**  
+
+    HA region DE, including these data centers:
+
+    * DE1: DC in Frankfurt
+
+    * DE2: DC in Munich
+
+
+    **United States**  
+
+    HA region US, including these data centers:
+
+    * US1: DC Ashburn
+
+    * US2: DC Secaucus
+
+
+    Please see the individual operations for details on how to work with HA
+    settings.
+
+
+    To obtain a test account for this service or any of our other fax services,
+    please contact Retarus.
+  contact:
+    name: Retarus
+    url: https://www.retarus.com/
+    email: info@retarus.com
+  termsOfService: https://www.retarus.com/us/legal-disclaimer/
+servers:
+  - url: https://faxws.de1.retarus.com/rest/v1
+    description: Retarus data center in Germany
+  - url: https://faxws.de2.retarus.com/rest/v1
+    description: Retarus data center in Germany
+  - url: https://faxws-ha.de.retarus.com/rest/v1
+    description: High availability URL for German data centers
+  - url: https://faxws.us1.retarus.com/rest/v1
+    description: Retarus data center in USA
+  - url: https://faxws.us2.retarus.com/rest/v1
+    description: Retarus data center in USA
+  - url: https://faxws-ha.us.retarus.com/rest/v1
+    description: High availability URL for US data centers
+  - url: https://faxws.ch1.retarus.com/rest/v1
+    description: Retarus data center in Switzerland
+  - url: https://faxws.sg1.retarus.com/rest/v1
+    description: Retarus data center in Singapore
+security:
+  - httpBasicAuth: []
+tags:
+  - name: Fax jobs
+    description: Send faxes
+paths:
+  /{custNr}/fax:
+    post:
+      tags:
+        - Fax jobs
+      summary: Send a fax
+      description: >
+        This method is used to prepare fax jobs to be transferred for
+        processing. If a valid FaxJobRequest has been received by the
+        Webservice, the Webservice sends a Job ID back that must be specified by
+        the client when querying the job status.
+      operationId: sendJobRequest
+      parameters:
+        - name: custNr
+          in: path
+          description: Your Retarus Customer Number (e.g. 99999TE).
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: Request parameters as a FaxJobRequest object
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaxJobRequest'
+            examples:
+              onedocument:
+                $ref: '#/components/examples/FaxJobRequestOneDocument'
+              coverpage:
+                $ref: '#/components/examples/FaxJobRequestJustCoverPage'
+              textdocument:
+                $ref: '#/components/examples/FaxJobRequestTextDocument'
+              pdffromurl:
+                $ref: '#/components/examples/FaxJobRequestGetPDFFromURL'
+              complete:
+                $ref: '#/components/examples/FaxJobRequestComplete'
+      responses:
+        '200':
+          description: Fax job submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaxJobResponse'
+        '400':
+          description: Invalid or incomplete job request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 400
+                message: >-
+                  Validation of job request failed: 'No number available for
+                  rcpt FNLAJR3BK80D8LLWADCPYL'
+        '401':
+          description: Authenication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseAuthenication'
+  /{custNr}/fax/reports/{jobId}:
+    get:
+      tags:
+        - Fax reports
+      summary: Fetch the status report for a single job
+      description: >
+        With the assistance of this URL resource, a status report for a fax job
+
+        can be requested by jobId.
+
+
+        A job's status can be queried until its report data is deleted. You can
+
+        initiate deletion of the data by calling `deleteStatusReport`,
+
+        and in any case the data will be automatically be deleted upon the
+
+        expiration of the configurable time frame (by default 30 days).
+
+
+        **Please note**: If you sent the fax job requests via a high
+        availability URL,
+
+        you have to poll the status from both included data centers. E.g., US1
+        and
+
+        US2 in case of the US high availability URL. Please do not poll statuses
+        directly 
+
+        from an HA URL but use the specific ones for the data centers.
+      operationId: getStatusReport
+      parameters:
+        - name: custNr
+          in: path
+          description: Customer Number
+          required: true
+          schema:
+            type: string
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fax job status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaxReport'
+        '401':
+          description: Authenication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponseAuthenication'
+        '404':
+          description: Status report not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: 404
+                message: No reports available; Job IDs {FJL8LN75OO01L0D15QUN1T}
+    delete:
+      tags:
+        - Fax reports
+      summary: Delete the status report for a single job
+      description: >
+        Deletes the status report for a single job. Returns the Job ID."
+
+
+        **Please note**: If you sent the fax job requests via a high
+        availability URL,
+
+        you have to send a delete request to both included data centers. Else,
+        it will 
+
+        be likely that the job was not processed in the data center you
+        referenced and
+
+        hence cannot be deleted there. Please do not send a delete request
+        directly to 
+
+        an HA URL but use the specific ones for the data centers.
+      operationId: deleteStatusReport
+      parameters:
+        - name: custNr
+          in: path
+          description: Customer Number
+          required: true
+          schema:
+            type: string
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status report deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDeleteReport'
+        '400':
+          description: Status report not available
+  /{custNr}/fax/reports:
+    get:
+      tags:
+        - Fax reports
+      summary: Fetch available status reports for this account
+      description: >
+        This URL returns a list of available status reports for completed fax
+
+        jobs for the current account.
+
+
+        Status reports are available for up to 30 days or until deleted.
+
+
+        IMPORTANT: The results are limited to the oldes 1000 entries. It is
+        recommended to
+
+        delete the status reports after fetching them in order to retrieve the
+
+        following ones.
+
+
+        **Please note**: If you sent the fax job requests via a high
+        availability URL,
+
+        you have to poll the status from both included data centers. E.g., US1
+        and
+
+        US2 in case of the US high availability URL. Please do not poll statuses
+        directly 
+
+        from an HA URL but use the specific ones for the data centers.
+      operationId: getAllStatusReports
+      parameters:
+        - name: custNr
+          in: path
+          description: Customer Number
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status reports delivered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaxReports'
+    post:
+      tags:
+        - Fax reports
+      summary: Perform bulk operations on the status reports
+      operationId: bulkStatusReports
+      description: >
+        It is possible to perform bulk operations on the status reports through
+        a
+
+        POST on the `/{custNr}/fax/reports` endpoint. The required parameters
+        are:
+
+          * the type of action to be performed
+          * A list of Job IDs on which the operation should be performed
+
+        Status reports are available for up to 30 days or until deleted.
+
+
+        The maximum number of jobs per POST request is set to 1000.
+
+
+        **Please note**: If you sent the fax job requests via a high
+        availability URL,
+
+        you have to send a delete request or a status poll request to both
+        included data 
+
+        centers. Else, it will be likely that the job was not processed in the
+        data center 
+
+        you referenced and hence cannot be deleted or no status is available
+        there. Please 
+
+        do not send a request directly to an HA URL but use the specific ones
+        for the data centers.
+      parameters:
+        - name: custNr
+          in: path
+          description: Customer Number
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: |
+          Array of jobIds to delete from the API.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkJobReportsRequestBody'
+            examples:
+              getStatus:
+                $ref: '#/components/examples/BulkJobStatusReportGetRequest'
+              Delete:
+                $ref: '#/components/examples/BulkJobStatusReportDeleteRequest'
+      responses:
+        '200':
+          description: >
+            Depending on the request type, this returns a `reports` item
+            containing either:
+
+              * an array of `Fax Report` items for the bulk GET (same as `getAllStatusReports`).
+              * an array of `Job Delete Report` items for the bulk DELETE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkJobReportResponseBody'
+    delete:
+      tags:
+        - Fax reports
+      summary: Delete the oldest status reports for this account
+      description: >
+        Deletes up to 1000 status reports for completed fax jobs for the current
+
+        account, starting from the oldest ones. It returns the jobIds of deleted
+
+        job reports.
+
+
+        IMPORTANT: In case there are more than 1000 completed job reports,
+        multiple calls
+
+        of this method might be needed to delete them all.
+
+
+        **Please note**: If you sent the fax job requests via a high
+        availability URL,
+
+        you have to send a delete request to both included data centers. Else,
+        it will 
+
+        be likely that the job was not processed in the data center you
+        referenced and
+
+        hence cannot be deleted there. Please do not send a delete request
+        directly to 
+
+        an HA URL but use the specific ones for the data centers.
+      operationId: deleteOldestStatusReports
+      parameters:
+        - name: custNr
+          in: path
+          description: Customer Number
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status reports deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteStatusReportsResponse'
+components:
+  securitySchemes:
+    httpBasicAuth:
+      type: http
+      scheme: basic
+      description: >
+        Each HTTP Request must be authenticated by Basic Authorization.
+
+
+        ```
+
+        Authorization: Basic Base64Encoded(username:password)
+
+        ```
+
+        Where `Base64Encoded(username:password)` is an actual Base64 encoded
+        string of the `username:password`.
+
+
+        *Example*:
+
+        username: John
+
+        password: secret
+
+        Base64-encoding of `John:secret` is `Sm9objpzZWNyZXQ=`.
+
+
+        ```
+
+        …
+
+        Authorization: Basic Sm9objpzZWNyZXQ=
+
+        …
+
+        ```
+
+
+        Retarus can configure multiple forms of access (Login IDs) for the
+        Webservice that can be managed via the Retarus
+
+        EAS Portal. Multiple processes can be operated concurrently by the
+        Webservice using multiple Login IDs, making
+
+        it possible to have a configuration saved for each process.
+
+
+        The job and report data for one Login ID are not viewable or available
+        in the other access options, which means
+
+        that a fax job’s status report can only be requested or deleted under
+        the Login ID used to create it.
+
+
+        As an additional layer of security it is possible to restrict access for
+        each Login ID to a pre-defined
+
+        list of IP addresses and/or subnets (IP address whitelisting).
+
+        If an account is so configured, all requests coming from IP addresses
+        which are not on the list will be rejected.
+
+        The configuration of IP address whitelisting is performed in the EAS
+        portal.
+  schemas:
+    FaxJobRequest:
+      type: object
+      required:
+        - recipients
+      properties:
+        reference:
+          $ref: '#/components/schemas/Reference'
+        recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaxRecipient'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentWithData'
+        transportOptions:
+          $ref: '#/components/schemas/TransportOptions'
+        renderingOptions:
+          $ref: '#/components/schemas/RenderingOptions'
+        statusReportOptions:
+          $ref: '#/components/schemas/StatusReportOptions'
+        meta:
+          $ref: '#/components/schemas/MetaData'
+      title: Fax Job Request
+    Reference:
+      type: object
+      properties:
+        customerDefinedId:
+          type: string
+          description: Freely-defined ID string (max. 256 characters).
+          example: 2022-04-7T11:04:37.057Z_customerDefinedId
+        billingCode:
+          type: string
+          description: >-
+            Information on the cost center; format is arbitrary (max. 80
+            characters).
+          example: 2022-04-7T11:04:37.057Z_billingCode
+        billingInfo:
+          type: string
+          description: >-
+            Additional data for internal customer accounting (max. 80
+            characters).
+          example: 2022-04-7T11:04:37.057Z_billingInfo
+      title: Reference
+    ErrorResponse:
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+    ErrorResponseAuthenication:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+      example:
+        code: 401
+        message: Authenication failed
+    BulkJobReportsRequestBody:
+      type: object
+      description: Body of the request for bulk operations on the job reports
+      required:
+        - action
+        - jobIds
+      properties:
+        action:
+          type: string
+          description: |
+            Defines the action to be performed on all jobs whose
+            Job ID is provided in the `jobIds` list
+
+            Possible options are:
+
+            * DELETE: Bulk delete the requested jobs
+            * GET: Bulk get the requested jobs
+
+            Both options are case insensitive.
+        jobIds:
+          type: array
+          description: List of Job IDs to be processed in bulk
+          items:
+            type: string
+    BulkJobReportResponseBody:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkJobReportResponseBodyItem'
+      example:
+        value:
+          reports:
+            - jobId: FJJ5Y09UM505ZZBIELCRYC
+              deleted: true
+            - jobId: FJJ5WA23UO05ZZBIEL0JY5
+              deleted: true
+            - jobId: FJJ5WA0FWM05ZZBIELZPE4
+              deleted: false
+              reason: NOT_FOUND
+            - jobId: FJJ5Y07H3805ZZBIELBAPL
+              deleted: true
+            - jobId: FJJ5WA25VB0BRN8TPSGGVY
+              deleted: false
+              reason: INTERNAL_ERROR
+            - jobId: FJJ5WA253505ZZBIELEKRC
+              deleted: true
+            - jobId: FJJ5WA24GI0BRN8TPSWAVM
+              deleted: true
+    BulkJobReportResponseBodyItem:
+      type: object
+      required:
+        - jobId
+      properties:
+        jobId:
+          type: string
+          description: The Job ID.
+        recipientStatus:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaxRecipientWithStatus'
+        pages:
+          type: integer
+          description: >
+            Number of pages in the fax. Only present for responses to a bulk
+            GET.
+        reference:
+          $ref: '#/components/schemas/Reference'
+        deleted:
+          type: boolean
+          description: |
+            Information whether the job report could be deleted.
+
+            Only present for responses to a bulk DELETE.
+        reason:
+          type: boolean
+          description: |
+            Missing if deletion was successful, otherwise one of the following
+            reason messages is returned:
+
+            * NOT_FOUND: No report exists for the given job id.
+            * INTERNAL_ERROR: Unspecified server-side error.
+
+            Only present for responses to a bulk DELETE.
+      title: Bulk Job Reports Response
+    FaxRecipient:
+      type: object
+      description: >
+        The number where the fax was sent to. If a fax can be successfully sent
+        to that number, the transmission to the respective recipient is
+        completed and considered successful. The destination number which
+        received the fax will be indicated in the report data for each recipient
+        under RecipientStatus -> sentToNumber.
+      required:
+        - number
+      properties:
+        number:
+          type: string
+          description: Dialed number (international format, e.g., +12015551000).
+          example: '0012012051598'
+        properties:
+          type: array
+          description: Personalized data for the cover page.
+          items:
+            $ref: '#/components/schemas/RecipientProperty'
+      title: Fax Recipient
+    RecipientProperty:
+      type: object
+      description: >
+        A cover page can be personalized for each individual recipient and then
+        attached to the front of each fax document.
+
+
+        This object allows specifying a value for each of the keys in the
+        template.
+
+
+        See \<\<common-fax4ba-cover-page-personalization\>\> for additional
+        information.
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+          description: Name of the key.
+          example: key123
+        value:
+          type: string
+          description: The value assigned to the key.
+          example: value123
+      title: Recipient Property
+    DocumentWithData:
+      type: object
+      description: >
+        data and additional information on sent documents; if there is no
+        document data and no cover page, the Webservice will not accept the job.
+
+
+        *Please note*: either `reference` or `data` can be used in a single
+        document, but not both at the same time.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: >
+            Document file name; the file extension is important for determining
+            the file type, e.g., `Invoice-2017-01.pdf`. **Please note**: The
+            maximum possible length of a file name is 32 characters. Allowed
+            characters are: `a-zA-Z0-9-_.` , and no whitespaces, slashes, or
+            other special characters are permitted.
+          example: test-document-inline-byte-array.txt
+        charset:
+          type: string
+          description: |
+            Character encoding of plain text documents (*.txt). Possible values:
+
+            * US-ASCII
+            * UTF-8
+            * UTF-16
+            * UTF-16BE
+            * UTF-16LE
+            * ISO-8859-1
+            * Windows-1252
+          default: UTF-8
+        reference:
+          type: string
+          nullable: true
+          description: An URL pointing to the document to be transmitted.
+          example: http://mydomain.retarus.com/my-path/mydocument.pdf
+        data:
+          type: string
+          nullable: true
+          description: >-
+            base64 string with data, if no reference is provided. If both are
+            provided, the reference data (see above) is used.
+          example: >-
+            SGVsbG8sIHRoaXMgaXMgYSB0ZXN0aW5nIGRvY3VtZW50IGJvZHkgY3JlYXRlZCBmb3IgOTk5OTlURQ==
+      title: Document With Data
+    TransportOptions:
+      type: object
+      description: Contains information on the transmission of the fax.
+      properties:
+        csid:
+          type: string
+          description: The sender ID the received fax was sent from (max. 20 characters).
+          example: test-csid
+        isExpress:
+          type: boolean
+          description: Flag for transmissions sent express.
+        isBlacklistEnabled:
+          type: boolean
+          description: |
+            Flag for the use of the Robinson List (only for numbers in Germany),
+            ECOFAX (for numbers in France), or Retarus' own blacklist.
+      title: Transport Options
+    RenderingOptions:
+      type: object
+      description: Contains instructions for the rendering of the fax.
+      required:
+        - paperFormat
+      properties:
+        paperFormat:
+          type: string
+          nullable: true
+          description: |
+            The size of the paper. Possible options are:
+
+            * A4
+            * LETTER
+        resolution:
+          type: string
+          description: |
+            The fax's resolution. Possible values are:
+
+              * LOW
+              * HIGH
+        coverpageTemplate:
+          type: string
+          description: >-
+            The name of the cover page's template; e.g.,
+            coverpage-default.ftl.html.
+          example: coverpage-default.ftl.html
+        overlay:
+          $ref: '#/components/schemas/Overlay'
+        header:
+          type: string
+          description: |
+            the content of the header, including control characters.
+          example: >-
+            %tz=CEST Testfax: CSID: %C Recipient number: %# Date: %d.%m.%Y %H:%M
+            %z
+      title: Rendering Options
+    Overlay:
+      type: object
+      nullable: true
+      description: >
+        Settings for the overlay (e.g., stationery). A overlay (e.g., with
+        letter
+
+        header and footer) can be applied to all or specific pages in the fax.
+        It 
+
+        consists of a one-page, black-and-white TIF image document. In order to 
+
+        use an overlay, it must be deployed to the customer's account by a
+        Retarus 
+
+        technician. The customer can provide a document in various formats eg
+        PDF,
+
+        which Retarus experts will then convert to a TIF image and deploy it
+        using
+
+        a agreed upon name. 
+      required:
+        - name
+        - mode
+      properties:
+        name:
+          type: string
+          description: >
+            The overlay name excluding the TIF file extension and without and
+            path information.
+          example: LetterHead
+        mode:
+          type: string
+          description: >
+            specifies the page in the document where the template (overlay) will
+            be applied. Possible values:
+
+              * ALL_PAGES: the overlay is applied to all pages
+              * NO_OVERLAY: no overlay is used (returns the same result as if "no overlay" had been specified in the options)
+              * FIRST_PAGE: the overlay is applied only to the first page (if you are using a cover  page, it is considered the first page)
+              * LAST_PAGE: the overlay is applied only to the last page
+              * ALL_BUT_FIRST_PAGE: the overlay is applied to all pages except for the first (if you are using a cover page, the overlay will be applied to all other pages because the cover page is considered the first page)
+              * ALL_BUT_LAST_PAGE: the overlay is applied to all pages except the last one
+              * ALL_BUT_FIRST_AND_LAST_PAGE: the overlay is applied to all pages except for the first and the last (the cover page is considered the first page if this mode is used)
+              * FIRST_FILE: if the faxed document consists of multiple files, the overlay will only be used on the first file's pages (the cover page is considered not to belong to any file and does not an overlay in this mode)
+      title: Overlay
+    StatusReportOptions:
+      type: object
+      description: >-
+        settings for the status report. Consists of `reportPurgeTs` and
+        `reportMail`.
+      required:
+        - reportPurgeTs
+      properties:
+        reportPurgeTs:
+          type: string
+          format: date-time
+          description: >-
+            Not currently valid. The date after which the status report is no
+            longer available. In ISO 8601 format
+          example: '2022-11-03T20:14:37.098+02:00'
+        reportMail:
+          $ref: '#/components/schemas/ReportMail'
+        httpStatusPush:
+          $ref: '#/components/schemas/HttpStatusPush'
+      title: Status Report Options
+    ReportMail:
+      type: object
+      description: >
+        In addition to querying via Webservice, it is possible to request
+        notification for each fax job as soon as processing is completed. The
+        status information can be sent by either HTTP POST or email.
+
+        Separate email addresses can each be specified for delivery and failed
+        delivery confirmations. If an email address is deleted for either type
+        of confirmation, no notification email will be sent for the confirmation
+        type that was removed.
+
+        The report emails' format is specified through a template which is
+        filled out with relevant data (Job ID, job status, details on the fax
+        recipients). A default template is available for all customers; however,
+        you can install a customized template. Templates must be encoded in
+        UTF-8 format.
+
+        In addition, it is possible to specify whether the fax image should be
+        attached to the report or not and if so in which format
+      properties:
+        successAddress:
+          type: string
+          description: >-
+            Email address, to which delivery confirmations notifications should
+            be sent.
+          example: john.doe@retarus.com
+        failureAddress:
+          type: string
+          description: >-
+            Email address, to which a notification should be sent when errors
+            occur.
+          example: jane.doe@retarus.com
+        attachedFaxImageMode:
+          type: string
+          description: >
+            Determines when the fax image will be attached to the email.
+            Possible values are:
+
+              * NEVER: Never attach the fax image
+              * SUCCESS_ONLY: Only attach the fax image in case of successful transmission
+              * FAILURE_ONLY: Only attach the fax image in case of failed transmission
+              * ALWAYS: Always attach the fax image
+          example: SUCCESS_ONLY
+          default: NEVER
+        attachedFaxImageFormat:
+          type: string
+          description: >
+            Determines when the fax image will be attached to the email. The
+            following formats are supported:
+
+              * TIFF: Fax image is attached as TIFF
+              * PDF: Fax image is atached as PDF
+              * PDF_WITH_OCR: Fax image is ttached as a searchable PDF file. Additional costs may occur
+          default: TIFF
+      title: Report Mail
+    HttpStatusPush:
+      type: object
+      description: >
+        In order to receive notification via HTTP, the JobRequest must contain
+
+        the `httpStatusPush` element. The URL to which the HTTP POST request is
+
+        sent has to be specified.
+
+
+        Please see \<\<common-fax4ba-http-status-push\>\> for additional
+        details.
+      required:
+        - targetUrl
+      properties:
+        targetUrl:
+          type: string
+          description: >-
+            The HTTP url to post the fax job status to (webhook). A default URL
+            can be configured for the account.
+          example: https://retarus.com/test-path/test-target
+        principal:
+          type: string
+          nullable: true
+          description: >-
+            The user name to authenticate with the status push endpoint, if
+            required. When using OAUTH2 this is the client id to obtain access
+            tokens.
+          example: none
+        credentials:
+          type: string
+          nullable: true
+          description: >-
+            The password to authenticate with the status push endpoint, if
+            required. When using OAUTH2 this is the client secret to obtain
+            access tokens.
+          example: none
+        authMethod:
+          type: string
+          description: >
+            The authentication method for the status push. Supported
+            authentication mehods and the corresponding values are:
+
+              * HTTP_BASIC
+              * HTTP_DIGEST
+              * OAUTH
+              * NONE
+
+            In order to use OAUTH2, the authorization server URL must be
+            configured in advance for the account.
+          enum:
+            - HTTP_BASIC
+            - HTTP_DIGEST
+            - OAUTH2
+            - NONE
+          default: NONE
+      title: Http Status Push
+    MetaData:
+      type: object
+      description: Meta information about the request.
+      required:
+        - customerReference
+      properties:
+        customerReference:
+          type: string
+          description: Information that the customer can use for internal references.
+          example: 99999TE
+        jobValid:
+          $ref: '#/components/schemas/JobValid'
+      title: Meta Data
+    JobValid:
+      type: object
+      description: >
+        Contains the valid start/end of a fax job (in ISO 8601 format). If this
+        data
+
+        is not defined correctly, you will receive a **Job Expiration** error.
+
+
+        If you want to use the default values, simply ignore this object.
+      properties:
+        start:
+          type: string
+          description: >
+            Beginning of validity for the job (in ISO 8601 format).
+
+            **Please note:** if this time is not defined correctly, you will
+            receive a `Job Expiration` error. By default jobs are immediately
+            valid.
+          nullable: true
+          default: null
+        end:
+          type: string
+          description: >
+            End of validity for the job (in ISO 8601 format). **Please note**
+            that also durations are supported; the following values are all
+            valid expiration times:
+
+
+            * 2022-10-11T15:50:21.372Z (expiration set to the exact moment
+            specified)
+
+            * PT80M  (Expiration set to now + 80 minutes)
+
+
+            By default jobs expire one month after they begin being valid.
+
+            The value must be one of these choices:
+              * string with format "date-time"
+              * string with format "duration"
+          default: P1M
+      title: Job Valid
+    FaxJobResponse:
+      type: object
+      required:
+        - jobId
+      properties:
+        jobId:
+          type: string
+      title: Fax Job Response
+      example:
+        jobId: FJKQQUVF1J0IADYARQEXKC
+    FaxReport:
+      type: object
+      required:
+        - jobId
+        - recipientStatus
+        - pages
+      properties:
+        jobId:
+          type: string
+          description: The Job ID.
+        recipientStatus:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaxRecipientWithStatus'
+        pages:
+          type: integer
+          description: Number of pages in the fax.
+        reference:
+          $ref: '#/components/schemas/Reference'
+      title: Fax Report
+      example:
+        jobId: FJJ66GHGX105ZZBIELVCN1
+        recipientStatus:
+          - number: +49 89 1234567-8900
+            properties: null
+            status: OK
+            reason: OK
+            sentTs: '2017-08-10T13:05:09Z'
+            durationInSecs: 19
+            sentToNumber: '00498912345678900'
+            remoteCsid: +49/89/1234567-8900
+        pages: 1
+        reference:
+          customerDefinedId: 2017-08-10T13:05:09Z_customerDefinedId
+          billingCode: 2017-08-10T13:05:09Z_billingCode
+          billingInfo: 2017-08-10T13:05:09Z_billingInfo
+    FaxRecipientWithStatus:
+      description: Receipient fax status information.
+      type: object
+      required:
+        - durationInSecs
+        - number
+        - reason
+        - status
+      properties:
+        number:
+          type: string
+          description: >-
+            The fax recipient's primary number (international format, e.g.,
+            +49891234678).
+        properties:
+          type: array
+          nullable: true
+          description: Personalized data used for the cover page.
+          items:
+            $ref: '#/components/schemas/RecipientProperty'
+        status:
+          type: string
+          description: Job status. See TBD for more information
+        reason:
+          type: string
+          description: Explanation of the status.
+        sentTs:
+          type: string
+          format: date-time
+          description: >-
+            Timestamp which indicates when the fax was sent (in ISO 8601
+            format).
+        durationInSecs:
+          type: integer
+          description: >-
+            Duration of the fax transmission until received by the fax
+            recipient.
+        sentToNumber:
+          type: string
+          description: Number to which the fax was sent.
+        remoteCsid:
+          type: string
+          description: Fax ID which identifies the fax recipient.
+      title: Fax Recipient With Status
+    DeleteStatusReportsResponse:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobDeleteReport'
+      example:
+        reports:
+          - jobId: FJJ5Y09UM505ZZBIELCRYC
+            deleted: true
+          - jobId: FJJ5WA23UO05ZZBIEL0JY5
+            deleted: true
+          - jobId: FJJ5WA0FWM05ZZBIELZPE4
+            deleted: false
+            reason: NOT_FOUND
+          - jobId: FJJ5Y07H3805ZZBIELBAPL
+            deleted: true
+          - jobId: FJJ5WA25VB0BRN8TPSGGVY
+            deleted: false
+            reason: INTERNAL_ERROR
+          - jobId: FJJ5WA253505ZZBIELEKRC
+            deleted: true
+          - jobId: FJJ5WA24GI0BRN8TPSWAVM
+            deleted: true
+    JobDeleteReport:
+      type: object
+      required:
+        - jobId
+        - deleted
+      properties:
+        jobId:
+          type: string
+          nullable: true
+          description: The Job ID.
+        deleted:
+          type: boolean
+          description: >
+            Returns `true` if the job was successfully deleted, false otherwise.
+            If
+
+            absent in the response it means the job was successfully deleted.
+        reason:
+          type: string
+          description: |
+            Missing if deletion was successful, otherwise one of the following
+            reason messages is returned:
+
+            * NOT_FOUND: No report exists for the given job id.
+            * INTERNAL_ERROR: Unspecified server-side error.
+          enum:
+            - NOT_FOUND
+            - INTERNAL_ERROR
+      title: Job Delete Report
+      example:
+        jobId: FJJ66GHGX105ZZBIELVCN1
+        deleted: true
+    FaxReports:
+      type: object
+      required:
+        - reports
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaxReport'
+      title: Fax Reports
+      example:
+        reports:
+          - jobId: FJJ5Y09UM505ZZBIELCRYC
+            recipientStatus:
+              - number: '+498912345678900'
+                properties: null
+                status: OK
+                reason: OK
+                sentTs: '2017-08-04T15:09:10Z'
+                durationInSecs: 19
+                sentToNumber: '00498912345678900'
+                remoteCsid: +49/89/1234567-8900
+            pages: 1
+            reference:
+              customerDefinedId: 2017-08-04T15:09:10Z_customerDefinedId
+              billingCode: 2017-08-04T15:09:10Z_billingCode
+              billingInfo: 2017-08-04T15:09:10Z_billingInfo
+          - jobId: FJJ5WA23UO05ZZBIEL0JY5
+            recipientStatus:
+              - number: '+498912345678901'
+                properties: null
+                status: OK
+                reason: OK
+                sentTs: '2017-08-03T10:07:31Z'
+                durationInSecs: 21
+                sentToNumber: '00498912345678901'
+                remoteCsid: Retarus Faxolution
+            pages: 2
+            reference:
+              customerDefinedId: 2017-08-03T10:07:31Z_customerDefinedId
+              billingCode: 2017-08-03T10:07:31Z_billingCode
+              billingInfo: 2017-08-03T10:07:31Z_billingInfo
+  examples:
+    FaxJobRequestTextDocument:
+      summary: Send an ISO-8859-1 encoded text document
+      value:
+        recipients:
+          - number: '+498900000000'
+        documents:
+          - name: retarusfaxservices.txt
+            charset: ISO-8859-1
+            data: >-
+              Q2xvdWQgRmF4IFNlcnZpY2VzIGZvciBEaWdpdGFsIFByb2Nlc3NlcwpGYXhpbmcgaXMgYW4gaW50ZWdyYWwgcGFydCBvZiBtYW55IGJ1c2luZXNzIHByb2Nlc3Nlcy4KCkRpZ2l0YWxlcyBGYXggZvxyIGRpZ2l0YWxlIFByb3plc3NlCkZheCBpc3QgaW50ZWdyYWxlciBCZXN0YW5kdGVpbCBzZWhyIHZpZWxlciBCdXNpbmVzcyBQcm96ZXNzZS4KCg==
+    FaxJobRequestOneDocument:
+      summary: Send a pdf document to a fax number
+      value:
+        recipients:
+          - number: '+498900000000'
+        documents:
+          - name: faxdocument.pdf
+            data: >-
+              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Ud3OE3Z275yr4kCdPLeMXD14bvXlMOkT2wccGhz/TqFJyPkmi2MOtfTn+FBI0+tiK1v70njkUnIg71e4JmtzdXSOC/2rNynXIHJzhEkoWDeq8PP+XpQm546t3ZRGbiy6VHGEKzc5mkQKZW5kc3RyZWFtCmVuZG9iagoxMyAwIG9iago8PAovRm9udCA8PAovRjEgMTEgMCBSCj4+Cj4+CmVuZG9iagozIDAgb2JqCjw8Ci9Db250ZW50cyBbIDEyIDAgUiBdCi9Dcm9wQm94IFsgMC4wIDAuMCA1OTUuMzIwMDEgODQxLjkyMDA0IF0KL01lZGlhQm94IFsgMC4wIDAuMCA1OTUuMzIwMDEgODQxLjkyMDA0IF0KL1BhcmVudCAyIDAgUgovUmVzb3VyY2VzIDEzIDAgUgovUm90YXRlIDAKL1R5cGUgL1BhZ2UKPj4KZW5kb2JqCjEwIDAgb2JqCjw8Ci9MZW5ndGggNTYzCj4+CnN0cmVhbQovQ0lESW5pdCAvUHJvY1NldCBmaW5kcmVzb3VyY2UgYmVnaW4gMTIgZGljdCBiZWdpbiBiZWdpbmNtYXAgL0NJRFN5c3RlbUluZm8gPDwgL1JlZ2lzdHJ5IChBZG9iZSkgL09yZGVyaW5nIChVQ1MpIC9TdXBwbGVtZW50IDAgPj4gZGVmIC9DTWFwTmFtZSAvQWRvYmUtSWRlbnRpdHktVUNTIGRlZiAvQ01hcFR5cGUgMiBkZWYgMSBiZWdpbmNvZGVzcGFjZXJhbmdlIDwwMDAwPiA8RkZGRj4gZW5kY29kZXNwYWNlcmFuZ2UgMTcgYmVnaW5iZmNoYXIgPDAwMDM+IDwwMDIwPiA8MDAwQj4gPDAwNDg+IDwwMDEzPiA8MDA1MD4gPDAwMTg+IDwwMDU1PiA8MDAxQT4gPDAwNTc+IDwwMDgzPiA8MDA2MT4gPDAwODY+IDwwMDY0PiA8MDA4Nz4gPDAwNjU+IDwwMDg5PiA8MDA2Nz4gPDAwOEI+IDwwMDY5PiA8MDA4RT4gPDAwNkM+IDwwMDkwPiA8MDA2RT4gPDAwOTE+IDwwMDZGPiA8MDA5ND4gPDAwNzI+IDwwMDk2PiA8MDA3ND4gPDAxNjA+IDwwMDIxPiA8MDI2OD4gPDAwMzE+IGVuZGJmY2hhciBlbmRjbWFwIENNYXBOYW1lIGN1cnJlbnRkaWN0IC9DTWFwIGRlZmluZXJlc291cmNlIHBvcCBlbmQgZW5kIAplbmRzdHJlYW0KZW5kb2JqCjkgMCBvYmoKWyAzIDMgNTQ5IDExIDExIDU0OSAxOSAxOSA1NDkgMjQgMjQgNTQ5IDI2IDI2IDU0OSAxMzEgMTMxIDU0OSAxMzQgMTM0IDU0OSAxMzUgMTM1IDU0OSAxMzcgMTM3IDU0OSAxMzkgMTM5IDU0OSAxNDIgMTQyIDU0OSAxNDQgMTQ0IDU0OSAxNDUgMTQ1IDU0OSAxNDggMTQ4IDU0OSAxNTAgMTUwIDU0OSAzNTIgMzUyIDU0OSA2MTYgNjE2IDU0OSBdCmVuZG9iago2IDAgb2JqClsgLTU0OSAtMjUwIDU0OSA5MTkgXQplbmRvYmoKNyAwIG9iago1NDkKZW5kb2JqCjIgMCBvYmoKPDwKL0NvdW50IDEKL0tpZHMgWyAzIDAgUiBdCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMSAwIG9iago8PAovUGFnZXMgMiAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjE0IDAgb2JqCjw8Ci9BdXRob3IgKG1hcmN1cykKL0NyZWF0aW9uRGF0ZSAoRDoyMDIyMDIwNDA4NTkwMiswMScwMCcpCi9Nb2REYXRlIChEOjIwMjIwMjA0MDg1OTAyKzAxJzAwJykKL1Byb2R1Y2VyIChNaWNyb3NvZnQ6IFByaW50IFRvIFBERikKL1RpdGxlIChVbnRpdGxlZCAtIE5vdGVwYWQpCj4+CmVuZG9iagp4cmVmCjAgMTUNCjAwMDAwMDAwMDAgNjU1MzUgZg0KMDAwMDAzOTk4NiAwMDAwMCBuDQowMDAwMDM5OTI3IDAwMDAwIG4NCjAwMDAwMzg4NjYgMDAwMDAgbg0KMDAwMDAwMDAwOSAwMDAwMCBuDQowMDAwMDAwMDM1IDAwMDAwIG4NCjAwMDAwMzk4NzEgMDAwMDAgbg0KMDAwMDAzOTkwOCAwMDAwMCBuDQowMDAwMDAwMDU4IDAwMDAwIG4NCjAwMDAwMzk2NjAgMDAwMDAgbg0KMDAwMDAzOTA0NSAwMDAwMCBuDQowMDAwMDM4MDU3IDAwMDAwIG4NCjAwMDAwMzg1MjkgMDAwMDAgbg0KMDAwMDAzODgyMSAwMDAwMCBuDQowMDAwMDQwMDM1IDAwMDAwIG4NCnRyYWlsZXIKPDwKL0luZm8gMTQgMCBSCi9Sb290IDEgMCBSCi9TaXplIDE1Cj4+CnN0YXJ0eHJlZgo0MDIxNAolJUVPRgo=
+    FaxJobRequestJustCoverPage:
+      summary: Send a coverpage to a fax number
+      value:
+        recipients:
+          - number: '+498900000000'
+            properties:
+              - key: FromName
+                value: John Doe
+              - key: FromCompanyName
+                value: Retarus
+              - key: FromTelNumber
+                value: +49 89 5528-2525
+              - key: ToName
+                value: Jane Doe
+              - key: ToCompanyName
+                value: Acme International Ltd.
+              - key: ToFaxNum
+                value: '+498900000000'
+              - key: SubjectTitle
+                value: Retarus OpenAPI testfax
+              - key: SubjectText
+                value: This testfax was sent from Retarus OpenAPI Portal.
+        renderingOptions:
+          paperFormat: null
+          coverpageTemplate: coverpage-default.ftl.html
+    FaxJobRequestGetPDFFromURL:
+      summary: Send a fax with a PDF located at an URL
+      value:
+        recipients:
+          - number: '+498900000000'
+        documents:
+          - name: retarusfaxservices.pdf
+            reference: >-
+              https://assets.retarus.com/wp-content/uploads/2018/02/retarus_use-case_optimized-delivery-processes_en.pdf
+    FaxJobRequestComplete:
+      summary: Send a fax job using all options
+      value:
+        reference:
+          customerDefinedId: 2022-04-7T11:04:37.057Z_customerDefinedId
+          billingCode: 2022-04-7T11:04:37.057Z_billingCode
+          billingInfo: 2022-04-7T11:04:37.057Z_billingInfo
+        recipients:
+          - number: '+12100000000'
+            properties:
+              - key: ToName
+                value: John Doe
+        documents:
+          - name: retarusfaxservices.html
+            reference: https://www.retarus.com/services/fax/
+            data: null
+        transportOptions:
+          csid: test-csid
+          isExpress: true
+          isBlacklistEnabled: true
+        renderingOptions:
+          paperFormat: A4
+          resolution: HIGH
+          coverpageTemplate: coverpage-default.ftl.html
+          overlay: LetterHead
+          header: >-
+            %tz=CEST Testfax: CSID: %C Empfaengernummer: %# Datum: %d.%m.%Y
+            %H:%M %z
+        statusReportOptions:
+          reportPurgeTs: '2022-11-03T20:14:37.098+02:00'
+          reportMail:
+            successAddress: john.doe@retarus.com
+            failureAddress: jane.doe@retarus.com
+            attachedFaxImageMode: SUCCESS_ONLY
+            attachedFaxImageFormat: TIFF
+          httpStatusPush:
+            targetUrl: http://retarus.com/test-path/test-target
+            principal: null
+            credentials: null
+            authMethod: NONE
+        meta:
+          customerReference: 99999TE
+          jobValid:
+            start: '2022-10-20T15:44:22.349Z'
+            end: PT90M
+    FaxJobResponse:
+      value:
+        jobId: FJKQQUVF1J0IADYARQEXKC
+    BulkJobStatusReportGetRequest:
+      summary: Get the status for multiple fax jobs
+      description: Get the status for the specified fax job ids.
+      value:
+        action: GET
+        jobIds:
+          - FJJ5Y09UM505ZZBIELCRYC
+          - FJJ5WA23UO05ZZBIEL0JY5
+          - FJJ5WA0FWM05ZZBIELZPE4
+          - FJJ5Y07H3805ZZBIELBAPL
+          - FJJ5WA25VB0BRN8TPSGGVY
+          - FJJ5WA253505ZZBIELEKRC
+          - FJJ5WA24GI0BRN8TPSWAVM
+    BulkJobStatusReportDeleteRequest:
+      summary: Delete the status for multiple fax jobs
+      description: Delete the status for the specified fax job ids.
+      value:
+        action: DELETE
+        jobIds:
+          - FJJ5Y09UM505ZZBIELCRYC
+          - FJJ5WA23UO05ZZBIEL0JY5
+          - FJJ5WA0FWM05ZZBIELZPE4
+          - FJJ5Y07H3805ZZBIELBAPL
+          - FJJ5WA25VB0BRN8TPSGGVY
+          - FJJ5WA253505ZZBIELEKRC
+          - FJJ5WA24GI0BRN8TPSWAVM
+    BulkJobStatusReportDeleteResponse:
+      value:
+        reports:
+          - jobId: FJJ5Y09UM505ZZBIELCRYC
+            deleted: true
+          - jobId: FJJ5WA23UO05ZZBIEL0JY5
+            deleted: true
+          - jobId: FJJ5WA0FWM05ZZBIELZPE4
+            deleted: false
+            reason: NOT_FOUND
+          - jobId: FJJ5Y07H3805ZZBIELBAPL
+            deleted: true
+          - jobId: FJJ5WA25VB0BRN8TPSGGVY
+            deleted: false
+            reason: INTERNAL_ERROR
+          - jobId: FJJ5WA253505ZZBIELEKRC
+            deleted: true
+          - jobId: FJJ5WA24GI0BRN8TPSWAVM
+            deleted: true
+  parameters: {}
